@@ -26,6 +26,10 @@ impl Value {
     fn new_uint(value: u64) -> Self {
         Self { type_tag: TYPE_UINT, uint_value: value, int_value: Default::default(), simple_value: Default::default() }
     }
+
+    fn new_int(value: i64) -> Self {
+        Self { type_tag: TYPE_INT, uint_value: Default::default(), int_value: value, simple_value: Default::default() }
+    }
 }
 
 global TYPE_UINT: u8 = 0;
@@ -45,6 +49,8 @@ impl CborEncoder {
     pub fn encode<let N: u32>(value: Value, buf: &mut [u8; N]) {
         if value.type_tag == TYPE_UINT {
             Self::encode_uint(value.uint_value, buf);
+        } else if value.type_tag == TYPE_INT {
+            Self::encode_int(value.int_value, buf);
         }
     }
 
@@ -77,7 +83,41 @@ impl CborEncoder {
         }
     }
 
-    fn encode_sint() {}
+    fn encode_int<let N: u32>(n: i64, buf: &mut [u8; N]) {
+        if n >= 0 {
+            // non-negative integers are encoded as unsigned, "Major type 0"
+            Self::encode_uint(n as u64, buf);
+        } else {
+            // negative integers are "Major type 1"
+            let u = (-1 - n) as u64;
+            if u <= 23 {
+                buf[0] = 0x20 | u as u8;
+            } else if u <= 255 {
+                buf[0] = 0x38;
+                buf[1] = u as u8;
+            } else if u <= 65535 {
+                buf[0] = 0x39;
+                buf[1] = (u >> 8) as u8;
+                buf[2] = u as u8;
+            } else if u <= 4294967295 {
+                buf[0] = 0x3a;
+                buf[1] = (u >> 24) as u8;
+                buf[2] = (u >> 16) as u8;
+                buf[3] = (u >> 8) as u8;
+                buf[4] = u as u8;
+            } else {
+                buf[0] = 0x3b;
+                buf[1] = (u >> 56) as u8;
+                buf[2] = (u >> 48) as u8;
+                buf[3] = (u >> 40) as u8;
+                buf[4] = (u >> 32) as u8;
+                buf[5] = (u >> 24) as u8;
+                buf[6] = (u >> 16) as u8;
+                buf[7] = (u >> 8) as u8;
+                buf[8] = u as u8;
+            }
+        }
+    }
 
     fn encode_bytes() {}
 
