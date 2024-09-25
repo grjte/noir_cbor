@@ -182,3 +182,52 @@ fn test_encode_uint() {
         [0x1b, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff]
     );
 }
+
+#[test]
+fn test_encode_int() {
+    // Positive integers (should be encoded as unsigned)
+    let int_0 = Value::new_int(0);
+    encode_and_compare(int_0, [0]);
+    // maximum i64 value is 2^63 - 1
+    let int_max = Value::new_int(0x7fffffffffffffff);
+    encode_and_compare(
+        int_max,
+        [0x1b, 0x7f, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff]
+    );
+
+    // -1 to -24 (single byte)
+    let int_n1 = Value::new_int(-1);
+    encode_and_compare(int_n1, [0x20]);
+    let int_n24 = Value::new_int(-24);
+    encode_and_compare(int_n24, [0x37]);
+
+    // -25 to -256 (two bytes)
+    let int_n25 = Value::new_int(-25);
+    encode_and_compare(int_n25, [0x38, 0x18]);
+    let int_n256 = Value::new_int(-256);
+    encode_and_compare(int_n256, [0x38, 0xff]);
+
+    // -257 to -65536 (three bytes)
+    let int_n257 = Value::new_int(-257);
+    encode_and_compare(int_n257, [0x39, 0x01, 0x00]);
+    let int_n65536 = Value::new_int(-65536);
+    encode_and_compare(int_n65536, [0x39, 0xff, 0xff]);
+
+    // -65537 to -4294967296 (five bytes)
+    let int_n65537 = Value::new_int(-65537);
+    encode_and_compare(int_n65537, [0x3a, 0x00, 0x01, 0x00, 0x00]);
+    let int_n4294967296 = Value::new_int(-4294967296);
+    encode_and_compare(int_n4294967296, [0x3a, 0xff, 0xff, 0xff, 0xff]);
+
+    // <= -4294967297 (nine bytes)
+    let int_n4294967297 = Value::new_int(-4294967297);
+    encode_and_compare(
+        int_n4294967297,
+        [0x3b, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00]
+    );
+    let int_min = Value::new_int(-0x8000000000000000);
+    encode_and_compare(
+        int_min,
+        [0x3b, 0x7f, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff]
+    );
+}
