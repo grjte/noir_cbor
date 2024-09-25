@@ -123,3 +123,32 @@ fn test_decode_uint() {
         Value::new_uint(18446744073709551615)
     );
 }
+
+#[test]
+fn test_decode_nint() {
+    // -1 to -24 (single byte)
+    decode_and_compare([0x20], Value::new_int(-1));
+    decode_and_compare([0x37], Value::new_int(-24));
+
+    // -25 to -256 (two bytes)
+    decode_and_compare([0x38, 0x18], Value::new_int(-25));
+    decode_and_compare([0x38, 0xff], Value::new_int(-256));
+
+    // -257 to -65536 (three bytes)
+    decode_and_compare([0x39, 0x01, 0x00], Value::new_int(-257));
+    decode_and_compare([0x39, 0xff, 0xff], Value::new_int(-65536));
+
+    // -65537 to -4294967296 (five bytes)
+    decode_and_compare([0x3a, 0x00, 0x01, 0x00, 0x00], Value::new_int(-65537));
+    decode_and_compare([0x3a, 0xff, 0xff, 0xff, 0xff], Value::new_int(-4294967296));
+
+    // <= -4294967297 (nine bytes)
+    decode_and_compare(
+        [0x3b, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00],
+        Value::new_int(-4294967297)
+    );
+    decode_and_compare(
+        [0x3b, 0x7f, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff],
+        Value::new_int(-0x8000000000000000) // min i64 value
+    );
+}
