@@ -19,6 +19,8 @@ impl CborDecoder {
 
         if major_type == 0 {
             result = Self::decode_uint(input);
+        } else if major_type == 1 {
+            result = Self::decode_nint(input);
         } else {
             assert(false, CborDecodingError::UnsupportedType());
         }
@@ -65,7 +67,11 @@ impl CborDecoder {
         result
     }
 
-    fn decode_int() {}
+    fn decode_nint<let N: u32>(input: [u8; N]) -> Value {
+        let unsigned = Self::decode_uint(input);
+        let value = -1 - (unsigned.uint_value as i64);
+        Value::new_int(value)
+    }
 
     fn decode_bytes() {}
 
