@@ -96,3 +96,49 @@ fn main() {
     CborEncoder::encode(uint_0, &mut buf);
     assert(buf[0] == 0);
 }
+
+// test helper function
+fn encode_and_compare<let N: u32>(value: Value, expected: [u8; N]) {
+    let mut buf = [0; N];
+    CborEncoder::encode(value, &mut buf);
+
+    for i in 0..N {
+        assert(buf[i] == expected[i]);
+    }
+}
+
+#[test]
+fn test_encode_uint() {
+    // 0-23 (single byte)
+    let uint_0 = Value::new_uint(0);
+    encode_and_compare(uint_0, [0]);
+    let uint_23 = Value::new_uint(23);
+    encode_and_compare(uint_23, [0x17]);
+
+    // 24-255 (two bytes)
+    let uint_24 = Value::new_uint(24);
+    encode_and_compare(uint_24, [0x18, 0x18]);
+    let uint_255= Value::new_uint(255);
+    encode_and_compare(uint_255, [0x18, 0xff]);
+
+    // 256-65535 (three bytes)
+    let uint_256= Value::new_uint(256);
+    encode_and_compare(uint_256, [0x19, 1, 0]);
+    let uint_65535= Value::new_uint(65535);
+    encode_and_compare(uint_65535, [0x19, 0xff, 0xff]);
+
+    // 65536-4294967295 (five bytes)
+    let uint_65536= Value::new_uint(65536);
+    encode_and_compare(uint_65536, [0x1a, 0, 1, 0, 0]);
+    let uint_4294967295= Value::new_uint(4294967295);
+    encode_and_compare(uint_4294967295, [0x1a, 0xff, 0xff, 0xff, 0xff]);
+
+    // 4294967296+ (nine bytes)
+    let uint_4294967296= Value::new_uint(4294967296);
+    encode_and_compare(uint_4294967296, [0x1b, 0, 0, 0, 1, 0, 0, 0, 0]);
+    let uint_max= Value::new_uint(18446744073709551615);
+    encode_and_compare(
+        uint_max,
+        [0x1b, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff]
+    );
+}
