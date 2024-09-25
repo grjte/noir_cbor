@@ -1,8 +1,12 @@
 mod cbor_types;
 use cbor_types::Value;
 
+mod cbor_error;
+
 mod cbor_encoder;
 use cbor_encoder::CborEncoder;
+
+mod cbor_decoder;
 
 fn main() {
     let uint_0 = Value::new_uint(0);
