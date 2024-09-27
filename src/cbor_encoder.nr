@@ -30,7 +30,8 @@ impl CborEncoder {
             buf[2] = (u >> 16) as u8;
             buf[3] = (u >> 8) as u8;
             buf[4] = u as u8;
-        } else {
+        } else if u > 4294967295 {
+            // TODO: we should be able to use an else case here, but Noir doesn't execute properly
             buf[0] = 27;
             buf[1] = (u >> 56) as u8;
             buf[2] = (u >> 48) as u8;
@@ -65,7 +66,8 @@ impl CborEncoder {
                 buf[2] = (u >> 16) as u8;
                 buf[3] = (u >> 8) as u8;
                 buf[4] = u as u8;
-            } else {
+            } else if u > 4294967295 {
+                // TODO: we should be able to use an else case here, but Noir doesn't execute properly
                 buf[0] = 0x3b;
                 buf[1] = (u >> 56) as u8;
                 buf[2] = (u >> 48) as u8;
