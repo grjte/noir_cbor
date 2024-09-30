@@ -189,3 +189,57 @@ fn test_encode_int() {
         [0x3b, 0x7f, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfe]
     );
 }
+
+// Test encoding byte strings
+#[test]
+fn test_encode_bytes() {
+    // Test empty byte string
+    let mut buf = [0 as u8; 1];
+    [].cbor_encode(&mut buf);
+    assert(buf == [0x40]);
+
+    // Test short byte string
+    let mut buf = [0 as u8; 4];
+    [0x01, 0x02, 0x03].cbor_encode(&mut buf);
+    assert(buf == [0x43, 0x01, 0x02, 0x03]);
+
+    // Test byte string with length 23 (boundary case)
+    let input = [1 as u8; 23];
+    let mut buf = [0 as u8; 24];
+    input.cbor_encode(&mut buf);
+    assert(buf[0] == 0x57);
+    for i in 0..23 {
+        assert(buf[i + 1] == input[i]);
+    }
+
+    // Test byte string with length 24 (boundary case)
+    let input = [1 as u8; 24];
+    let mut buf = [0 as u8; 26];
+    input.cbor_encode(&mut buf);
+    assert(buf[0] == 0x58);
+    assert(buf[1] == 24);
+    for i in 0..24 {
+        assert(buf[i + 2] == input[i]);
+    }
+
+    // Test byte string with length 255 (boundary case)
+    let input = [1 as u8; 255];
+    let mut buf = [0 as u8; 257];
+    input.cbor_encode(&mut buf);
+    assert(buf[0] == 0x58);
+    assert(buf[1] == 255);
+    for i in 0..255 {
+        assert(buf[i + 2] == input[i]);
+    }
+
+    // Test byte string with length 256 (boundary case)
+    let input = [1 as u8; 256];
+    let mut buf = [0 as u8; 259];
+    input.cbor_encode(&mut buf);
+    assert(buf[0] == 0x59);
+    assert(buf[1] == 0x01);
+    assert(buf[2] == 0x00);
+    for i in 0..256 {
+        assert(buf[i + 3] == input[i]);
+    }
+}
