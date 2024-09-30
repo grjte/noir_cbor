@@ -2,7 +2,7 @@
 // https://datatracker.ietf.org/doc/html/rfc7049
 // Major type 0:  an unsigned integer
 // Major type 1:  a negative integer
-// SKIP Major type 2:  a byte string
+// Major type 2:  a byte string
 // SKIP Major type 3:  a text string, specifically a string of Unicode
 //   characters that is encoded as UTF-8
 // SKIP Major type 4:  an array of data items.
@@ -22,21 +22,21 @@ impl CborEncoder for u64 {
         if self <= 23 {
             buf[0] = self as u8;
         } else if self <= 255 {
-            buf[0] = 24;
+            buf[0] = 0x18;
             buf[1] = self as u8;
         } else if self <= 65535 {
-            buf[0] = 25;
+            buf[0] = 0x19;
             buf[1] = (self >> 8) as u8;
             buf[2] = self as u8;
         } else if self <= 4294967295 {
-            buf[0] = 26;
+            buf[0] = 0x1a;
             buf[1] = (self >> 24) as u8;
             buf[2] = (self >> 16) as u8;
             buf[3] = (self >> 8) as u8;
             buf[4] = self as u8;
         } else if self > 4294967295 {
             // TODO: we should be able to use `else` here, but Noir doesn't execute properly
-            buf[0] = 27;
+            buf[0] = 0x1b;
             buf[1] = (self >> 56) as u8;
             buf[2] = (self >> 48) as u8;
             buf[3] = (self >> 40) as u8;
@@ -84,6 +84,33 @@ impl CborEncoder for i64 {
                 buf[7] = (u >> 8) as u8;
                 buf[8] = u as u8;
             }
+        }
+    }
+}
+
+impl<let N: u32> CborEncoder for [u8; N] {
+    fn cbor_encode<let M: u32>(self, buf: &mut [u8; M]) {
+        // encode the length of the byte string as an unsigned integer
+        let len = N as u64;
+        len.cbor_encode(buf);
+
+        // but use the correct tag and additional info
+        if len <= 23 {
+            buf[0] |= 0x40;
+        } else if len <= 255 {
+            buf[0] = 0x58;
+        } else if len <= 65535 {
+            buf[0] = 0x59;
+        } else {
+            // len <= 4294967295, since N generic is u32
+            assert(len <= 4294967295);
+            buf[0] = 0x5a;
+        }
+
+        // Copy the byte string, skipping the bytes that encode the length
+        let prefix_len = M - N;
+        for i in 0..N {
+            buf[prefix_len + i] = self[i];
         }
     }
 }
