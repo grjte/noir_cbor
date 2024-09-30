@@ -172,3 +172,56 @@ fn test_decode_nint() {
         -0x7fffffffffffffff as i64
     );
 }
+
+// Test decoding byte strings
+#[test]
+fn test_decode_bytes() {
+    // Test empty byte string
+    let encoded = [0x40];
+    let decoded = encoded.cbor_decode();
+    assert(decoded == []);
+
+    // Test short byte string
+    let expected = [0x01, 0x02, 0x03];
+    let encoded = [0x43, 0x01, 0x02, 0x03];
+    let decoded = encoded.cbor_decode();
+    assert(decoded.len() == 3);
+    assert(decoded == expected);
+
+    // Test byte string with length 23 (boundary case)
+    let expected = [1 as u8; 23];
+    let mut encoded = [1 as u8; 24];
+    encoded[0] = 0x57;
+    let encoded = encoded;
+    let decoded = encoded.cbor_decode();
+    assert(decoded.len() == 23);
+    assert(decoded == expected);
+
+    // Test byte string with length 24 (boundary case)
+    let expected = [1 as u8; 24];
+    let mut encoded = [1 as u8; 26];
+    encoded[0] = 0x58;
+    encoded[1] = 24;
+    let encoded = encoded;
+    let decoded = encoded.cbor_decode();
+    assert(decoded == expected);
+
+    // Test byte string with length 255 (boundary case)
+    let expected = [1 as u8; 255];
+    let mut encoded = [1 as u8; 257];
+    encoded[0] = 0x58;
+    encoded[1] = 255;
+    let encoded = encoded;
+    let decoded = encoded.cbor_decode();
+    assert(decoded == expected);
+
+    // Test byte string with length 256 (boundary case)
+    let expected = [1 as u8; 256];
+    let mut encoded = [1 as u8; 259];
+    encoded[0] = 0x59;
+    encoded[1] = 0x01;
+    encoded[2] = 0x00;
+    let encoded = encoded;
+    let decoded = encoded.cbor_decode();
+    assert(decoded == expected);
+}
