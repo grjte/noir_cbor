@@ -94,7 +94,8 @@ fn decode_length<let N: u32>(input: [u8; N]) -> (u32, u32) {
 impl<let N: u32> CborDecoder for [u8; N] {
     fn cbor_decode<let M: u32>(input: [u8; M]) -> [u8; N] {
         let major_type = input[0] >> 5;
-        assert(major_type == 2, CborDecodingError::InvalidMajorType());
+        // byte string or text string that is assumed to be encoded as utf-8
+        assert((major_type == 2) | (major_type == 3), CborDecodingError::InvalidMajorType());
 
         let (header_size, length) = decode_length(input);
         assert(length == N);
