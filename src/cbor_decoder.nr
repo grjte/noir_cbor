@@ -61,6 +61,54 @@ impl CborDecoder for i64 {
     }
 }
 
+fn decode_length<let N: u32>(input: [u8; N]) -> (u32, u32) {
+    let additional_info = input[0] & 0x1F;
+    let mut header_size: u32 = 1;
+    let mut length: u32 = 1;
+
+    if additional_info <= 23 {
+        header_size = 1;
+        length = additional_info as u32;
+    } else if additional_info == 24 {
+        header_size = 2;
+        length = input[1] as u32;
+    } else if additional_info == 25 {
+        header_size = 3;
+        length = (input[1] as u32) << 8 | (input[2] as u32);
+    } else if additional_info == 26 {
+        header_size = 5;
+        length = (input[1] as u32) << 24 | 
+                (input[2] as u32) << 16 | 
+                (input[3] as u32) << 8 | 
+                (input[4] as u32);
+    } else if additional_info == 27 {
+        // Noir generics are limited to u32, so we can't support byte arrays of length u64.
+        assert(false, CborDecodingError::InputTooLong());
+    } else {
+        assert(false, CborDecodingError::InvalidAdditionalInfo());
+    }
+
+    (header_size, length)
+}
+
+impl<let N: u32> CborDecoder for [u8; N] {
+    fn cbor_decode<let M: u32>(input: [u8; M]) -> [u8; N] {
+        let major_type = input[0] >> 5;
+        assert(major_type == 2, CborDecodingError::InvalidMajorType());
+
+        let (header_size, length) = decode_length(input);
+        assert(length == N);
+
+        // Extract the bytes after the header
+        let mut decoded = [0 as u8; N];
+        for i in 0..N {
+            decoded[i] = input[header_size + i];
+        }
+
+        decoded
+    }
+}
+
 // test helper function
 fn decode_and_compare<let N: u32, T>(input: [u8; N], expected: T) where T: CborDecoder + Eq {
     let decoded = T::cbor_decode(input);
