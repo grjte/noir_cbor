@@ -3,7 +3,7 @@
 // Major type 0:  an unsigned integer
 // Major type 1:  a negative integer
 // Major type 2:  a byte string
-// SKIP Major type 3:  a text string, specifically a string of Unicode
+// Major type 3:  a text string, specifically a string of Unicode
 //   characters that is encoded as UTF-8
 // SKIP Major type 4:  an array of data items.
 // SKIP Major type 5:  a map of pairs of data items.
@@ -13,105 +13,116 @@
 //   => SKIP floating-point numbers
 //   => simple types: False, True, Null, Undefined, Other(u8)
 
+// TODO: optimize performance
+fn cbor_encode_prefix<let N: u32>(major_type: u8, value: u64, buf: &mut [u8; N]) {
+    // default to type prefix for major type 0
+    let mut type_prefix = 0;
+    if major_type == 1 {
+        type_prefix = 0x20;
+    } else if major_type == 2 {
+        type_prefix = 0x40;
+    } else if major_type == 3 {
+        type_prefix = 0x60;
+    } else if major_type != 0 {
+        assert(false, "Major type not implemented");
+    }
+
+    if value <= 23 {
+        buf[0] = type_prefix | value as u8;
+    } else if value <= 255 {
+        buf[0] = type_prefix | 0x18;
+        buf[1] = value as u8;
+    } else if value <= 65535 {
+        buf[0] = type_prefix | 0x19;
+        buf[1] = (value >> 8) as u8;
+        buf[2] = value as u8;
+    } else if value <= 4294967295 {
+        buf[0] = type_prefix | 0x1a;
+        buf[1] = (value >> 24) as u8;
+        buf[2] = (value >> 16) as u8;
+        buf[3] = (value >> 8) as u8;
+        buf[4] = value as u8;
+    } else if value > 4294967295 {
+        // TODO: we should be able to use `else` here, but Noir doesn't execute properly
+        buf[0] = type_prefix | 0x1b;
+        buf[1] = (value >> 56) as u8;
+        buf[2] = (value >> 48) as u8;
+        buf[3] = (value >> 40) as u8;
+        buf[4] = (value >> 32) as u8;
+        buf[5] = (value >> 24) as u8;
+        buf[6] = (value >> 16) as u8;
+        buf[7] = (value >> 8) as u8;
+        buf[8] = value as u8;
+    }
+}
+
 trait CborEncoder {
     fn cbor_encode<let N: u32>(self, buf: &mut [u8; N]);
 }
 
 impl CborEncoder for u64 {
     fn cbor_encode<let N: u32>(self, buf: &mut [u8; N]) {
-        if self <= 23 {
-            buf[0] = self as u8;
-        } else if self <= 255 {
-            buf[0] = 0x18;
-            buf[1] = self as u8;
-        } else if self <= 65535 {
-            buf[0] = 0x19;
-            buf[1] = (self >> 8) as u8;
-            buf[2] = self as u8;
-        } else if self <= 4294967295 {
-            buf[0] = 0x1a;
-            buf[1] = (self >> 24) as u8;
-            buf[2] = (self >> 16) as u8;
-            buf[3] = (self >> 8) as u8;
-            buf[4] = self as u8;
-        } else if self > 4294967295 {
-            // TODO: we should be able to use `else` here, but Noir doesn't execute properly
-            buf[0] = 0x1b;
-            buf[1] = (self >> 56) as u8;
-            buf[2] = (self >> 48) as u8;
-            buf[3] = (self >> 40) as u8;
-            buf[4] = (self >> 32) as u8;
-            buf[5] = (self >> 24) as u8;
-            buf[6] = (self >> 16) as u8;
-            buf[7] = (self >> 8) as u8;
-            buf[8] = self as u8;
-        }
+        // unsigned integers are "Major type 0"
+        cbor_encode_prefix(0, self, buf);
     }
 }
 
 impl CborEncoder for i64 {
     fn cbor_encode<let N: u32>(self, buf: &mut [u8; N]) {
         if self >= 0 {
-            // non-negative integers are encoded as unsigned, "Major type 0"
+            // non-negative integers are encoded as unsigned
             (self as u64).cbor_encode(buf);
         } else {
             // negative integers are "Major type 1"
             let u = (-1 - self) as u64;
-            if u <= 23 {
-                buf[0] = 0x20 | u as u8;
-            } else if u <= 255 {
-                buf[0] = 0x38;
-                buf[1] = u as u8;
-            } else if u <= 65535 {
-                buf[0] = 0x39;
-                buf[1] = (u >> 8) as u8;
-                buf[2] = u as u8;
-            } else if u <= 4294967295 {
-                buf[0] = 0x3a;
-                buf[1] = (u >> 24) as u8;
-                buf[2] = (u >> 16) as u8;
-                buf[3] = (u >> 8) as u8;
-                buf[4] = u as u8;
-            } else if u > 4294967295 {
-                // TODO: we should be able to use `else` here, but Noir doesn't execute properly
-                buf[0] = 0x3b;
-                buf[1] = (u >> 56) as u8;
-                buf[2] = (u >> 48) as u8;
-                buf[3] = (u >> 40) as u8;
-                buf[4] = (u >> 32) as u8;
-                buf[5] = (u >> 24) as u8;
-                buf[6] = (u >> 16) as u8;
-                buf[7] = (u >> 8) as u8;
-                buf[8] = u as u8;
-            }
+            cbor_encode_prefix(1, u, buf);
+        }
+    }
+}
+
+struct CborInputString<let N: u32> {
+    bytes: [u8; N],
+    is_text: bool
+}
+
+impl<let N: u32> CborInputString<N> {
+    fn new(bytes: [u8; N], is_text: bool) -> Self {
+        Self { bytes, is_text }
+    }
+}
+
+impl<let N: u32> CborEncoder for CborInputString<N> {
+    fn cbor_encode<let M: u32>(self, buf: &mut [u8; M]) {
+        // encode the length of the byte string as an unsigned integer
+        let len = N as u64;
+
+        if !self.is_text {
+            // byte strings are major type 2
+            cbor_encode_prefix(2, len, buf);
+        } else {
+            // text strings are major type 3
+            cbor_encode_prefix(3, len, buf);
+        }
+
+        // Copy the byte string, skipping the bytes that encode the length
+        let prefix_len = M - N;
+        for i in 0..N {
+            buf[prefix_len + i] = self.bytes[i];
         }
     }
 }
 
 impl<let N: u32> CborEncoder for [u8; N] {
     fn cbor_encode<let M: u32>(self, buf: &mut [u8; M]) {
-        // encode the length of the byte string as an unsigned integer
-        let len = N as u64;
-        len.cbor_encode(buf);
+        let value = CborInputString::new(self, false);
+        value.cbor_encode(buf)
+    }
+}
 
-        // but use the correct tag and additional info
-        if len <= 23 {
-            buf[0] |= 0x40;
-        } else if len <= 255 {
-            buf[0] = 0x58;
-        } else if len <= 65535 {
-            buf[0] = 0x59;
-        } else {
-            // len <= 4294967295, since N generic is u32
-            assert(len <= 4294967295);
-            buf[0] = 0x5a;
-        }
-
-        // Copy the byte string, skipping the bytes that encode the length
-        let prefix_len = M - N;
-        for i in 0..N {
-            buf[prefix_len + i] = self[i];
-        }
+impl<let N: u32> CborEncoder for str<N> {
+    fn cbor_encode<let M: u32>(self, buf: &mut [u8; M]) {
+        let value = CborInputString::new(self.as_bytes(), true);
+        value.cbor_encode(buf)
     }
 }
 
