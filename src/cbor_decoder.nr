@@ -226,3 +226,9 @@ fn test_decode_bytes() {
     let decoded = encoded.cbor_decode();
     assert(decoded == expected);
 }
+
+// Test cbor decoding for a string of Unicode characters encoded as utf-8 bytes
+#[test]
+fn test_decode_text_bytes() {
+    // TODO
+}
