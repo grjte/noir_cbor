@@ -205,14 +205,11 @@ fn test_encode_int() {
 #[test]
 fn test_encode_bytes() {
     // Test empty byte string
-    let mut buf = [0 as u8; 1];
-    [].cbor_encode(&mut buf);
-    assert(buf == [0x40]);
+    encode_and_compare([], [0x40]);
 
     // Test short byte string
-    let mut buf = [0 as u8; 4];
-    [0x01, 0x02, 0x03].cbor_encode(&mut buf);
-    assert(buf == [0x43, 0x01, 0x02, 0x03]);
+    let bytes: [u8; 3] = [0x01, 0x02, 0x03];
+    encode_and_compare(bytes, [0x43, 0x01, 0x02, 0x03]);
 
     // Test byte string with length 23 (boundary case)
     let input = [1 as u8; 23];
@@ -252,5 +249,143 @@ fn test_encode_bytes() {
     assert(buf[2] == 0x00);
     for i in 0..256 {
         assert(buf[i + 3] == input[i]);
+    }
+}
+
+// Test cbor encoding for a string
+#[test]
+fn test_encode_str() {
+    // Test short text string (length < 24)
+    let input = "Hello";
+    let input_bytes = input.as_bytes();
+    let mut buf = [0 as u8; 6];
+    input.cbor_encode(&mut buf);
+    assert(buf[0] == 0x65); // 0x60 | 5 (length of "Hello")
+    for i in 0..input_bytes.len() {
+        assert(buf[i + 1] == input_bytes[i]);
+    }
+
+    // Test text string with length 23 (boundary case)
+    let input = "abcdefghijklmnopqrstuvw";
+    let input_bytes = input.as_bytes();
+    let mut buf = [0 as u8; 24];
+    input.cbor_encode(&mut buf);
+    assert(buf[0] == 0x77); // 0x60 | 23
+    for i in 0..input_bytes.len() {
+        assert(buf[i + 1] == input_bytes[i]);
+    }
+
+    // Test UTF-8 encoding with non-ASCII characters
+    let input = "こんにちは世界"; // "Hello world" in Japanese
+    let input_bytes = input.as_bytes();
+    let mut buf = [0 as u8; 22];
+    input.cbor_encode(&mut buf);
+    assert(buf[0] == 0x75); // 0x60 | 21 (length of UTF-8 encoded string)
+    for i in 0..input_bytes.len() {
+        assert(buf[i + 1] == input_bytes[i]);
+    }
+
+    // Test text string with length 24 (requires 1-byte additional info)
+    let input = "abcdefghijklmnopqrstuvwx";
+    let input_bytes = input.as_bytes();
+    let mut buf = [0 as u8; 26];
+    input.cbor_encode(&mut buf);
+    assert(buf[0] == 0x78); // 0x60 | 24 (1-byte additional info)
+    assert(buf[1] == 24); // Length encoded in 1 byte
+    for i in 0..input_bytes.len() {
+        assert(buf[i + 2] == input_bytes[i]);
+    }
+
+    // Test text string with length 255 bytes (max 1-byte additional info)
+    let input = "Hello World! Àéîòü αβγδε АБВГД あいうえお 水火木金土 😁🌟🍕 €$£¥ ♠♣♥♦ ½¼¾ ©®™ ☃☕✈ ✔✘✖ ←↑→↓ ÅÆØ ĄĆĘ ßœŸ ışğ ΩΨΧ ЖЪЬ ღჩხ कखग กขค ツヨヮ ☺☢☠868";
+    let input_bytes = input.as_bytes();
+    let mut buf = [0 as u8; 257];
+    input.cbor_encode(&mut buf);
+    assert(buf[0] == 0x78); // 0x60 | 24 (1-byte additional info)
+    assert(buf[1] == 255); // Length encoded in 1 byte
+    for i in 0..input_bytes.len() {
+        assert(buf[i + 2] == input_bytes[i]);
+    }
+
+    // Test text string with length 256 bytes (min 2-byte additional info)
+    let input = "😁✌👍❤️😂🌟✨🍕🎵☕🎉😍😘💪🌈🍔💜✅🌹😊🍺🎤😃🍃🎁😜📚💡😋✂👋🌊🍊😉😝🌺🍦💖💙💚💛💗💘🌷🌸🍀🍁🍂🍄🍅🍆🍇🍈🍉🍌🍍🍎🍏🍑🍒🍓🍖🍘🍝451";
+    let input_bytes = input.as_bytes();
+    let mut buf = [0 as u8; 259];
+    input.cbor_encode(&mut buf);
+    assert(buf[0] == 0x79); // 0x60 | 25 (2-byte additional info)
+    assert(buf[1] == 0x01); // Length encoded in 2 bytes (256 = 0x0100)
+    assert(buf[2] == 0x00);
+    for i in 0..input_bytes.len() {
+        assert(buf[i + 3] == input_bytes[i]);
+    }
+}
+
+// Test cbor encoding for a string of Unicode characters encoded as utf-8 bytes
+#[test]
+fn test_encode_text_bytes() {
+    // Test short text string (length < 24)
+    let input_bytes = "Hello".as_bytes();
+    let input = CborInputString::new(input_bytes, true);
+    let mut buf = [0 as u8; 6];
+    input.cbor_encode(&mut buf);
+    assert(buf[0] == 0x65); // 0x60 | 5 (length of "Hello")
+    for i in 0..input_bytes.len() {
+        assert(buf[i + 1] == input_bytes[i]);
+    }
+
+    // Test text string with length 23 (boundary case)
+    let input_bytes = "abcdefghijklmnopqrstuvw".as_bytes();
+    let input = CborInputString::new(input_bytes, true);
+    let mut buf = [0 as u8; 24];
+    input.cbor_encode(&mut buf);
+    assert(buf[0] == 0x77); // 0x60 | 23
+    for i in 0..input_bytes.len() {
+        assert(buf[i + 1] == input_bytes[i]);
+    }
+
+    // Test UTF-8 encoding with non-ASCII characters
+    let input_bytes = "こんにちは世界".as_bytes();
+    let input = CborInputString::new(input_bytes, true);
+    let mut buf = [0 as u8; 22];
+    input.cbor_encode(&mut buf);
+    assert(buf[0] == 0x75); // 0x60 | 21 (length of UTF-8 encoded string)
+    for i in 0..input_bytes.len() {
+        assert(buf[i + 1] == input_bytes[i]);
+    }
+
+    // Test text string with length 24 (requires 1-byte additional info)
+    let input_bytes = "abcdefghijklmnopqrstuvwx".as_bytes();
+    let input = CborInputString::new(input_bytes, true);
+    let mut buf = [0 as u8; 26];
+    input.cbor_encode(&mut buf);
+    assert(buf[0] == 0x78); // 0x60 | 24 (1-byte additional info)
+    assert(buf[1] == 24); // Length encoded in 1 byte
+    for i in 0..input_bytes.len() {
+        assert(buf[i + 2] == input_bytes[i]);
+    }
+
+    // Test text string with length 255 bytes (max 1-byte additional info)
+    let input = "Hello World! Àéîòü αβγδε АБВГД あいうえお 水火木金土 😁🌟🍕 €$£¥ ♠♣♥♦ ½¼¾ ©®™ ☃☕✈ ✔✘✖ ←↑→↓ ÅÆØ ĄĆĘ ßœŸ ışğ ΩΨΧ ЖЪЬ ღჩხ कखग กขค ツヨヮ ☺☢☠868";
+    let input_bytes = input.as_bytes();
+    let input = CborInputString::new(input_bytes, true);
+    let mut buf = [0 as u8; 257];
+    input.cbor_encode(&mut buf);
+    assert(buf[0] == 0x78); // 0x60 | 24 (1-byte additional info)
+    assert(buf[1] == 255); // Length encoded in 1 byte
+    for i in 0..input_bytes.len() {
+        assert(buf[i + 2] == input_bytes[i]);
+    }
+
+    // Test text string with length 256 bytes (min 2-byte additional info)
+    let input = "😁✌👍❤️😂🌟✨🍕🎵☕🎉😍😘💪🌈🍔💜✅🌹😊🍺🎤😃🍃🎁😜📚💡😋✂👋🌊🍊😉😝🌺🍦💖💙💚💛💗💘🌷🌸🍀🍁🍂🍄🍅🍆🍇🍈🍉🍌🍍🍎🍏🍑🍒🍓🍖🍘🍝451";
+    let input_bytes = input.as_bytes();
+    let input = CborInputString::new(input_bytes, true);
+    let mut buf = [0 as u8; 259];
+    input.cbor_encode(&mut buf);
+    assert(buf[0] == 0x79); // 0x60 | 25 (2-byte additional info)
+    assert(buf[1] == 0x01); // Length encoded in 2 bytes (256 = 0x0100)
+    assert(buf[2] == 0x00);
+    for i in 0..input_bytes.len() {
+        assert(buf[i + 3] == input_bytes[i]);
     }
 }
